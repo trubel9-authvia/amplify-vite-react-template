@@ -1,13 +1,273 @@
-<!doctype html>
-<html lang="en">
-  <head>
-    <meta charset="UTF-8" />
-    <link rel="icon" type="image/svg+xml" href="/vite.svg" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Vite + React + TS</title>
-  </head>
-  <body>
-    <div id="root"></div>
-    <script type="module" src="/src/main.tsx"></script>
-  </body>
+<!DOCTYPE html>
+<html>
+<head>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      background-color: #f7f7f7;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      height: 100vh;
+      margin: 0;
+    }
+    #formContainer {
+      position: relative;
+      width: 100%;
+      max-width: 300px;
+    }
+    #customerForm {
+      background-color: #ffffff;
+      padding: 20px 30px;
+      border-radius: 8px;
+      box-shadow: 0px 4px 12px rgba(0, 0, 0, 0.1);
+      width: 100%;
+    }
+    #customerForm label {
+      font-size: 14px;
+      font-weight: bold;
+      margin-top: 8px;
+      display: block;
+    }
+    #customerForm input[type="text"],
+    #customerForm input[type="number"],
+    #customerForm input[type="hidden"] {
+      width: 95%;
+      padding: 10px;
+      margin: 8px 0;
+      border: 1px solid #ccc;
+      border-radius: 4px;
+      font-size: 14px;
+    }
+    #customerForm input.error {
+      background-color: #ffdddd;
+    }
+    .error-message {
+      color: red;
+      font-size: 12px;
+      display: none;
+      margin-bottom: 10px;
+    }
+    #customerForm button {
+      width: 100%;
+      background-color: #4CAF50;
+      color: white;
+      padding: 10px;
+      font-size: 16px;
+      font-weight: bold;
+      border: none;
+      border-radius: 4px;
+      cursor: pointer;
+      transition: background-color 0.3s ease;
+      margin-top: 20px;
+    }
+    #customerForm button:hover {
+      background-color: #45a049;
+    }
+    #spinner {
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      background: rgba(255, 255, 255, 0.8);
+      display: none;
+      align-items: center;
+      justify-content: center;
+      font-size: 14px;
+      color: #555;
+      border-radius: 8px;
+      padding: 20px 30px;
+    }
+    #spinner img {
+      width: 150px;
+      //height: 100px;
+    }
+    #result {
+      display: none;
+      background-color: #e6f9e6;
+      border: 2px solid #4CAF50;
+      color: #333;
+      margin-top: 20px;
+      padding: 5px 20px;
+      border-radius: 8px;
+      box-shadow: 0px 4px 12px rgba(0, 0, 0, 0.1);
+      font-size: 14px;
+      text-align: center;
+      width: 100%;
+      max-width: 300px;
+    }
+    #copyButton {
+      margin-left: 10px;
+      padding: 5px 10px;
+      font-size: 12px;
+      background-color: #4CAF50;
+      color: white;
+      border: none;
+      border-radius: 4px;
+      cursor: pointer;
+    }
+    #copyButton:hover {
+      background-color: #45a049;
+    }
+  </style>
+</head>
+<body>
+  <div id="formContainer">
+    <div id="title" style="text-align: left; font-weight: bold; font-size: 18px; margin-bottom: 20px;">&nbsp;&nbsp;Create Payment Request</div>
+
+    <form id="customerForm" novalidate>
+      <label for="customerRef">Customer Reference:</label>
+      <input type="text" id="customerRef" name="customerRef" required>
+      <div class="error-message" id="customerRefError">Must be at least 3 characters and contain only letters, numbers, or underscores.</div>
+
+      <label for="customerAddress">Customer Address (email or mobile):</label>
+      <input type="text" id="customerAddress" name="customerAddress" required>
+      <div class="error-message" id="customerAddressError">Must be a valid email or a 10-digit phone number without hyphens.</div>
+
+      <label for="amount">Amount:</label>
+      <input type="number" id="amount" name="amount" step="0.01" required>
+      <div class="error-message" id="amountError">Must be a whole number or a number with up to two decimal places.</div>
+
+      <label for="description">Description:</label>
+      <input type="text" id="description" name="description" required>
+      <div class="error-message" id="descriptionError">Must be less than 500 characters.</div>
+
+      <label for="invoice">Invoice (Optional):</label>
+      <input type="text" id="invoice" name="invoice">
+
+      <input type="hidden" id="agent" name="agent">
+
+      <button type="button" onclick="validateAndSubmit()">Create</button>
+    </form>
+
+    <div id="spinner">Creating... <img src="https://upload.wikimedia.org/wikipedia/commons/b/b1/Loading_icon.gif" alt="Loading"></div>
+    <div id="result"></div>
+  </div>
+
+  <script>
+    // Retrieve and set agent value from query parameter
+    const urlParams = new URLSearchParams(window.location.search);
+    const agent = urlParams.get('agent');
+    if (agent) document.getElementById('agent').value = agent;
+
+    function showError(input, errorMessage) {
+      input.classList.add('error');
+      errorMessage.style.display = 'block';
+    }
+
+    function hideError(input, errorMessage) {
+      input.classList.remove('error');
+      errorMessage.style.display = 'none';
+    }
+
+    function validateAndSubmit() {
+      // Get form elements and error message elements
+      const customerRef = document.getElementById('customerRef');
+      const customerAddress = document.getElementById('customerAddress');
+      const amount = document.getElementById('amount');
+      const description = document.getElementById('description');
+
+      const customerRefError = document.getElementById('customerRefError');
+      const customerAddressError = document.getElementById('customerAddressError');
+      const amountError = document.getElementById('amountError');
+      const descriptionError = document.getElementById('descriptionError');
+
+      // Validation flags
+      let isValid = true;
+
+      // Validate Customer Reference
+      if (!/^[a-zA-Z0-9_]{3,}$/.test(customerRef.value)) {
+        showError(customerRef, customerRefError);
+        isValid = false;
+      } else {
+        hideError(customerRef, customerRefError);
+      }
+
+      // Validate Customer Address
+      if (!/^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/.test(customerAddress.value) && !/^\d{10}$/.test(customerAddress.value)) {
+        showError(customerAddress, customerAddressError);
+        isValid = false;
+      } else {
+        hideError(customerAddress, customerAddressError);
+      }
+
+      // Validate Amount
+      if (!/^\d+(\.\d{1,2})?$/.test(amount.value)) {
+        showError(amount, amountError);
+        isValid = false;
+      } else {
+        hideError(amount, amountError);
+      }
+
+      // // Validate Amount
+      // if (amount > 0 && /^\d+(\.\d{1,2})?$/.test(amount)) {
+      //   hideError(amount, amountError);
+      // } else {
+      //   showError(amount, amountError);
+      //   isValid = false;
+      // }
+
+      // Validate Description
+      if (description.value.length > 500) {
+        showError(description, descriptionError);
+        isValid = false;
+      } else {
+        hideError(description, descriptionError);
+      }
+
+      // Only proceed if all fields are valid
+      if (!isValid) return;
+
+      // Show spinner
+      document.getElementById('spinner').style.display = 'flex';
+
+      // Submit data to Google Apps Script
+      google.script.run
+        .withSuccessHandler(function(result) {
+          const resultDiv = document.getElementById('result');
+          resultDiv.innerHTML = `<p><b> ${result.status} for ${customerRef.value} at ${customerAddress.value}.</b></p>`;
+          
+          // Commented out becuase it's not necesary to send them to the specific conversation.
+          // <p><b>Link: </b><span id="resultLink">${result.link}</span> <button id="copyButton" onclick="copyToClipboard('resultLink')">Copy</button></p>`;
+          
+          // resultDiv.innerHTML = `<b> ${result.status}</b><br><p>Link to Payment Request: <div id="resultLink">${result.link}</div> <button id="copyButton" onclick="copyToClipboard('resultLink')">Copy</button></p><p>Link to Customer's Portal: <div id="portalLink">authvia.info/Inszone</div> <button id="copyButton" onclick="copyToClipboard('portalLink')">Copy</button></p>`;
+
+          resultDiv.style.display = 'block';
+          document.getElementById('spinner').style.display = 'none';
+        })
+        .withFailureHandler(function(error) {
+          alert('An error occurred: ' + error.message);
+          document.getElementById('spinner').style.display = 'none';
+        })
+        .createCustomerConversation({
+          customerRef: customerRef.value,
+          customerAddress: customerAddress.value,
+          amount: parseFloat(amount.value),
+          description: description.value,
+          invoice: document.getElementById('invoice').value,
+          agent: document.getElementById('agent').value,
+        });
+    }
+
+
+    function copyToClipboard(target) {
+      const linkText = document.getElementById(target).innerHTML;
+
+      navigator.clipboard.writeText(linkText).then(() => {
+        const copyButton = document.getElementById('copyButton');
+        copyButton.textContent = 'Copied!';
+        copyButton.style.backgroundColor = '#45a049';
+
+        // Reset button text after 1.5 seconds
+        setTimeout(() => {
+          copyButton.textContent = 'Copy';
+          copyButton.style.backgroundColor = '#4CAF50';
+        }, 1500);
+      }).catch(err => {
+        console.error('Failed to copy link: ', err);
+      });
+    }
+  </script>
+</body>
 </html>
